@@ -269,6 +269,7 @@ class SystemManager(object):
     def create_column_family(self, keyspace, name, super=False,
                              comparator_type=None,
                              subcomparator_type=None,
+                             column_metadata=None,
                              key_cache_size=None,
                              row_cache_size=None,
                              gc_grace_seconds=None,
@@ -307,6 +308,8 @@ class SystemManager(object):
           types may be used as well by providing the class name; if the custom
           comparator class is not in ``org.apache.cassandra.db.marshal``, the fully
           qualified class name must be given.
+
+        :param dict column_metadata: A ``dict`` with column_names mapped to column_types
 
         :param str subcomparator_type: Like `comparator_type`, but if the column family
           is a super column family, this applies to the type of the subcolumn names
@@ -378,6 +381,9 @@ class SystemManager(object):
         if super:
             cfdef.column_type = 'Super'
 
+        if column_metadata:
+            cfdef.column_metadata = self._make_column_metadata(column_metadata)
+
         cfdef.comparator_type = self._qualify_type_class(comparator_type)
         cfdef.subcomparator_type = self._qualify_type_class(subcomparator_type)
         cfdef.default_validation_class = self._qualify_type_class(default_validation_class)
@@ -403,6 +409,18 @@ class SystemManager(object):
         self._cfdef_assign(row_cache_keys_to_save, cfdef, 'row_cache_keys_to_save')
         self._cfdef_assign(compression_options, cfdef, 'compression_options')
         self._system_add_column_family(cfdef)
+
+    def _make_column_metadata(self, columns):
+        """
+        Return a list of ColumnDef for a ``dict`` of 
+        column_names to column_types
+        """
+        packer = marshal.packer_for('AsciiType')
+        column_metadata = []
+        for column_name, column_type in columns.items():
+            cname = packer(column_name)
+            column_metadata.append(ColumnDef(cname, self._qualify_type_class(column_type), None, None))
+        return column_metadata
 
     def _cfdef_assign(self, attr, cfdef, attr_name):
         if attr is not None:
